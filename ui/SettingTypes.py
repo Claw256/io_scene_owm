@@ -49,6 +49,36 @@ class OWModelSettings(bpy.types.PropertyGroup):
         description='Save a material database in json for use in other applications',
         default=False,
     )
+    
+    unTriangulate: BoolProperty(
+        name='Un-triangulate Mesh',
+        description='Un-triangulate the mesh and merge overlapping vertices',
+        default=False,
+    )
+    
+    mergeThreshold: FloatProperty(
+        name='Merge Threshold',
+        description='Threshold for merging overlapping vertices',
+        default=0.0001,
+        min=0.0,
+        max=2.0,
+        precision=6,
+    )
+
+    topologyInfluence: FloatProperty(
+        name='Topoplogy Influence',
+        description='Influence of topology on mesh',
+        default=1.0,
+        min=0.0,
+        max=2.0,
+        precision=3,
+    )
+    
+    deduplicateMeshes: BoolProperty(
+        name='Deduplicate Meshes',
+        description='Reuse mesh data when importing models',
+        default=True,
+    )
 
     def draw(cls, me, layout):
         layout.label(text='Mesh')
@@ -58,7 +88,12 @@ class OWModelSettings(bpy.types.PropertyGroup):
         if bpy.app.version < (4,1,0):
             layout.prop(me, 'autoSmoothNormals')
         layout.prop(me, 'importEmpties')
-
+        layout.prop(me, 'unTriangulate')
+        if me.unTriangulate:
+            layout.prop(me, 'mergeThreshold')
+        layout.prop(me, 'topologyInfluence')
+        layout.prop(me, 'deduplicateMeshes')
+    
     def draw_armature(cls, me, layout, label=True):
         if label:
             layout.label(text='Armature')

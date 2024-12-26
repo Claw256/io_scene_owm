@@ -42,7 +42,9 @@ class ImportOWMDL(bpy.types.Operator, ImportHelper):
     def execute(self, context):
         t = datetime.now()
         files = [PathUtil.joinPath(self.directory, file.name) for file in self.files]
-        ImportModel.init(files, self.modelSettings)
+        settings = self.modelSettings
+        settings["unTriangulate"] = self.modelSettings.unTriangulate
+        ImportModel.init(files, settings)
         UIUtil.log('Done. SMPTE: %s' % (smpte_from_seconds(datetime.now() - t)))
         return {'FINISHED'}
 
