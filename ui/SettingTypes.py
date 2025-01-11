@@ -114,6 +114,33 @@ class OWMapSettings(bpy.types.PropertyGroup):
         default=False,
     )
 
+    useInstancing: BoolProperty(
+        name='Use Instancing',
+        description='Use Blender instancing for duplicate objects to reduce memory usage',
+        default=True,
+    )
+
+    fixTopology: BoolProperty(
+        name='Fix Topology',
+        description='Convert triangulated quads back into proper quads using topology influence',
+        default=True,
+    )
+
+    mergeVertices: BoolProperty(
+        name='Merge Vertices',
+        description='Merge vertices that are close together',
+        default=True,
+    )
+
+    mergeDistance: FloatProperty(
+        name='Merge Distance',
+        description='Maximum distance between vertices to be merged',
+        default=0.0001,
+        min=0.00001,
+        max=1.0,
+        precision=5,
+    )
+
     def draw(cls, me, layout):
         layout.label(text='Map')
         layout.prop(me, 'importObjects')
@@ -121,6 +148,12 @@ class OWMapSettings(bpy.types.PropertyGroup):
         layout.prop(me, 'importLights')
         layout.prop(me, 'removeCollision')
         layout.prop(me, 'joinMeshes')
+        layout.prop(me, 'useInstancing')
+        layout.prop(me, 'fixTopology')
+        layout.prop(me, 'mergeVertices')
+        if me.mergeVertices:
+            row = layout.row()
+            row.prop(me, 'mergeDistance')
 
 
 class OWLightSettings(bpy.types.PropertyGroup):
