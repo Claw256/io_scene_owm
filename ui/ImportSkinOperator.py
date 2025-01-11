@@ -81,7 +81,6 @@ class ImportOWSkin(bpy.types.Operator):
 
     def listMythicVariants(self, context):
         global VARIANTS,VARIANTCACHE,ICONS
-        self.modelSettings.importMatless = False
         if self.skin not in ICONS:
             ICONS[self.skin] = bpy.utils.previews.new()
             ICONS["loaded"][self.skin] = {}
@@ -105,13 +104,14 @@ class ImportOWSkin(bpy.types.Operator):
     def resetSkin(self, context):
         if self.hero != "Select":
             self.mythic = False
-            self.modelSettings.importMatless = True
             self.skin = "Select"
     
     def resetEntity(self, context):
-        if not self.mythic and self.skin != "Select":
-            self.entity = heroDefaults.get(self.hero, "Gameplay3P")
-            self.modelSettings.importMatless = True
+        if self.skin != "Select":
+            defaultEntity = heroDefaults.get(self.hero, "Gameplay3P")
+            self.entity = defaultEntity
+            # setting a second time helps mythics.. (first doesn't stick)
+            self.entity = defaultEntity
 
 
     modelSettings: bpy.props.PointerProperty(type=SettingTypes.OWModelSettings)
@@ -138,13 +138,14 @@ class ImportOWSkin(bpy.types.Operator):
             if DatatoolLibUtil.categoryExists("Heroes"):
                 return True
             else:
-                cls.poll_message_set('Heroes folder not found')
+                cls.poll_message_set('\'Heroes\' folder not found.\nExtract some skins (extract-unlocks) or check the DataTool output path is set correctly in the addon preferences.')
                 return False
         else:
-            cls.poll_message_set('Datatool output path not set')
+            cls.poll_message_set('DataTool output path not set.\nTo use this wizard (not required), set the DataTool output path in the addon preferences.')
             return False
 
     def execute(self, context):
+        self.modelSettings.importMatless = not self.mythic
         if self.hero == "Select":
             self.report({'ERROR'}, "No Hero selected.")
             bpy.ops.import_mesh.overtools2_skin('INVOKE_DEFAULT')

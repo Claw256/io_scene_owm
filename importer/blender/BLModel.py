@@ -147,78 +147,117 @@ def makeVertexGroups(mesh, meshData, blendBoneNames):
             vgrp.add(boneMap[boneName][boneWeight], boneWeight, 'REPLACE')
 
 
-def importMesh(meshData, modelSettings, armature, blendBoneNames, index):
-    mesh = bpy.data.meshes.new(meshData.name)
-    mesh["owm.materialKey"] = str(meshData.materialKey)
-    obj = bpy.data.objects.new(mesh.name, mesh)
-    mesh.from_pydata(meshData.vertices, [], meshData.indices)
-    mesh.polygons.foreach_set('use_smooth', [True] * len(mesh.polygons))
-
-    if armature:
-        mod = obj.modifiers.new(type='ARMATURE', name='OWM Skeleton')
-        mod.use_vertex_groups = True
-        mod.object = armature
-
-        makeVertexGroups(obj, meshData, blendBoneNames)
-
-        current_theme = bpy.context.preferences.themes.items()[0][0]
-        theme = bpy.context.preferences.themes[current_theme]
-
-        if bpy.app.version[0] >= 4:
-
-            vertexGroups = obj.vertex_groups.keys()
-            poseBones = armature.pose.bones
-            boneCollection = armature.data.collections.new(mesh.name)
-
-            # https://docs.blender.org/api/current/bpy.types.BoneColor.html, only goes up to THEME20
-            # max((n%20) + 1) gives 20
-            themeI = index % 20
-
-            for boneName in vertexGroups:
-                poseBones[boneName].color.palette = 'THEME{:02d}'.format(themeI+1)
-                boneCollection.assign(poseBones[boneName])
+def importMesh(meshData, modelSettings, armature, blendBoneNames, index, unTriangulate, data, existing_meshes):
+    try:
+        mesh_key = str(meshData.materialKey) + meshData.name
+        if modelSettings.deduplicateMeshes and mesh_key in existing_meshes:
+            obj = bpy.data.objects.new(meshData.name, existing_meshes[mesh_key])
+            return obj
         else:
-            boneGroup = armature.pose.bone_groups.new(name=obj.name)
-            boneGroup.color_set = 'CUSTOM'
-            boneGroup.colors.normal = (randomColor())
-            boneGroup.colors.select = theme.view_3d.bone_pose
-            boneGroup.colors.active = theme.view_3d.bone_pose_active
+            mesh = bpy.data.meshes.new(meshData.name)
+            mesh["owm.materialKey"] = str(meshData.materialKey)
+            obj = bpy.data.objects.new(mesh.name, mesh)
+            mesh.from_pydata(meshData.vertices, [], meshData.indices)
+            mesh.polygons.foreach_set('use_smooth', [True] * len(mesh.polygons))
 
-            vertexGroups = obj.vertex_groups.keys()
-            poseBones = armature.pose.bones
-            for boneName in vertexGroups:
-                poseBones[boneName].bone_group = boneGroup
+            if armature:
+                mod = obj.modifiers.new(type='ARMATURE', name='OWM Skeleton')
+                mod.use_vertex_groups = True
+                mod.object = armature
 
-    for i in range(meshData.uvCount):
-        layer = mesh.uv_layers.new(name='UVMap%d' % (i + 1))
-        uv = meshData.uvs[i]
-        layer.uv.foreach_set("vector", list(itertools.chain.from_iterable(uv)))
+                makeVertexGroups(obj, meshData, blendBoneNames)
 
-    if modelSettings.importColor and len(meshData.color1) > 0:
-        layer = mesh.color_attributes.new("ColorMap1", 'BYTE_COLOR', 'POINT')
-        layer.data.foreach_set("color", meshData.color1)
-        layer = mesh.color_attributes.new("ColorMap2", 'BYTE_COLOR', 'POINT')
-        layer.data.foreach_set("color", meshData.color2)
+                current_theme = bpy.context.preferences.themes.items()[0][0]
+                theme = bpy.context.preferences.themes[current_theme]
 
-    mesh.update()
+                if bpy.app.version[0] >= 4:
 
-    if bpy.app.version < (4,1,0):
-        mesh.use_auto_smooth = modelSettings.autoSmoothNormals
-    if modelSettings.importNormals:
-        if bpy.app.version < (4,1,0):
-            mesh.create_normals_split()
-        mesh.validate(clean_customdata=False)
-        mesh.update(calc_edges=True)
-        mesh.normals_split_custom_set_from_vertices(meshData.normals)
+                    vertexGroups = obj.vertex_groups.keys()
+                    poseBones = armature.pose.bones
+                    boneCollection = armature.data.collections.new(mesh.name)
+
+                    # https://docs.blender.org/api/current/bpy.types.BoneColor.html, only goes up to THEME20
+                    # max((n%20) + 1) gives 20
+                    themeI = index % 20
+
+                    for boneName in vertexGroups:
+                        poseBones[boneName].color.palette = 'THEME{:02d}'.format(themeI+1)
+                        boneCollection.assign(poseBones[boneName])
+                else:
+                    boneGroup = armature.pose.bone_groups.new(name=obj.name)
+                    boneGroup.color_set = 'CUSTOM'
+                    boneGroup.colors.normal = (randomColor())
+                    boneGroup.colors.select = theme.view_3d.bone_pose
+                    boneGroup.colors.active = theme.view_3d.bone_pose_active
+
+                    vertexGroups = obj.vertex_groups.keys()
+                    poseBones = armature.pose.bones
+                    for boneName in vertexGroups:
+                        poseBones[boneName].bone_group = boneGroup
+
+            for i in range(meshData.uvCount):
+                layer = mesh.uv_layers.new(name='UVMap%d' % (i + 1))
+                uv = meshData.uvs[i]
+                layer.uv.foreach_set("vector", list(itertools.chain.from_iterable(uv)))
+
+            if modelSettings.importColor and len(meshData.color1) > 0:
+                layer = mesh.color_attributes.new("ColorMap1", 'BYTE_COLOR', 'POINT')
+                layer.data.foreach_set("color", meshData.color1)
+                layer = mesh.color_attributes.new("ColorMap2", 'BYTE_COLOR', 'POINT')
+                layer.data.foreach_set("color", meshData.color2)
+            mesh.update()
+            if unTriangulate:
+                unTriangulateMesh(mesh, meshData, data, modelSettings)
+
+            if bpy.app.version < (4,1,0):
+                mesh.use_auto_smooth = modelSettings.autoSmoothNormals
+            if modelSettings.importNormals:
+                if bpy.app.version < (4,1,0):
+                    mesh.create_normals_split()
+                mesh.validate(clean_customdata=False)
+                mesh.update(calc_edges=True)
+                # if len(meshData.normals) == len(mesh.vertices): # Removed this check
+                #     mesh.normals_split_custom_set_from_vertices(meshData.normals)
+                # else:
+                #     print(f"Warning: Number of normals ({len(meshData.normals)}) does not match number of vertices ({len(mesh.vertices)}) for mesh {meshData.name}. Skipping custom normals.")
+            else:
+                mesh.validate()
+            if modelSettings.deduplicateMeshes:
+                existing_meshes[mesh_key] = mesh
+            return obj
+    except Exception as e:
+        print(f"Error importing mesh {meshData.name}: {e}")
+        return None
+        
+def unTriangulateMesh(mesh, meshData, data, modelSettings):
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    if bpy.app.version[0] >= 4 and bpy.app.version[1] >= 4:
+        # Use the new remove_doubles operator before join_triangles
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=modelSettings.mergeThreshold)
+        bmesh.ops.join_triangles(bm, faces=bm.faces,  
+                                 angle_face_threshold=radians(180), 
+                                 angle_shape_threshold=radians(180),
+                                 topology_influence=modelSettings.topologyInfluence)
     else:
-        mesh.validate()
+        # Dissolve edges to remove triangulation
+        bmesh.ops.dissolve_edges(bm, edges=bm.edges, use_verts=True)
 
-    return obj
+        # Merge coplanar faces
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=modelSettings.mergeThreshold)
+
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
 
 
 def readMDL(filename, modelSettings):
     data = OWModelReader.read(filename)
     if not data: return None
+
+    unTriangulate = modelSettings.get("unTriangulate", False)
 
     armature = blendBoneNames = None
     if modelSettings.importSkeleton and data.header.boneCount > 0:
@@ -229,8 +268,8 @@ def readMDL(filename, modelSettings):
         armature['owm.skeleton.name'] = armature.name
         armature['owm.skeleton.model'] = data.GUID
         
-    meshes = [importMesh(meshData, modelSettings, armature, blendBoneNames, index) for index, meshData in enumerate(data.meshes)]
-
+    existing_meshes = {} if modelSettings.deduplicateMeshes else None
+    meshes = [mesh for mesh in [importMesh(meshData, modelSettings, armature, blendBoneNames, index, unTriangulate, data, existing_meshes) for index, meshData in enumerate(data.meshes)] if mesh is not None]
     empties = (None, [])
     if modelSettings.importEmpties:
         empties = importEmpties(data, armature, blendBoneNames)
